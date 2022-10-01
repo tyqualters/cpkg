@@ -1,9 +1,51 @@
 # CarePackage Changelogs
 
+## Version 0.0.1.2 (STABLE)
+
+Date: 20221001
+
+This is the third official release of CarePackage.
+
+New commands:
+
+    + run
+    + .
+
+The "." command is just an alias for the "run" command.
+
+The new command will assume the Current Working Directory (CWD) and run the existing executable.
+
+If the executable is not found, it will call for a compile before running.
+
+Building now displays the time elapsed for compiling. (CarePackage took 9s!)
+
+I drank a full large Dr. Pepper from McDonalds, so I'm about 3% fatter than I was before I started with these changes. Now I'm going to have to hit Jim tonight.
+
+Fixed the prompt for build directory deletion from the previous version. Sorry, not sorry, this is a new project it won't be immediately perfect.
+
+Immediate TODO for next version:
+
+    - Multi-threaded compiling option. (Have separate threads each run an instance of GCC to compile concurrently **if possible**.)
+
+Postponed TODOs for future versions:
+
+    - Complete the script parsing.
+    - Add in static library building for Windows.
+    - Add in dynamic library building.
+    - Actually compile for Windows LOL!
+    - Rewrite the whole program in Rust on a separate dev branch so that the cursed Crustaceans can have some inner peace.
+    - Prettify the care.pkg file so that it's not so freakin' ugly with multiple dependencies.
+    - Maybe solve world hunger. I don't know.
+
+Hopefully someday GCC will add Text Formatting to C++20.
+
+Probably forgot to do an online quiz or something for school.
+
+Now that I can finally run with this new command, maybe I will be able to pass that upcoming PT test.
+
 ## Version 0.0.1.1 (STABLE)
 
 Date: 20220927
-
 
 This is the second official release of CarePackage.
 
