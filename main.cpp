@@ -192,6 +192,22 @@ auto make_http_request(const std::string& url) -> std::optional<std::string> {
     }
 }
 
+auto make_dir_if_not_exists(const std::string& path) -> bool {
+    if (file_exists(path)) {
+        if (is_dir(path)) {
+            return true;
+        } else {
+            fmt::print(stderr, FMT_ERROR_COLOR, "Path exists but is not a directory: {}\n", path);
+            return false;
+        }
+    } else {
+        if (std::filesystem::create_directories({path})) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // TODO: Add Directory Constraints to all Lua functions
 auto directory_constraint_test(const std::string& projectPath, const std::string& givenPath) -> bool {
     const auto absoluteProjectPath = std::filesystem::absolute(std::filesystem::canonical({projectPath}));
@@ -275,7 +291,7 @@ public:
 
     std::stringstream m_contents;
     std::unordered_set<std::string> m_projectNames;
-};
+} g_Generator;
 
 class LuaInstance {
 public:
@@ -321,8 +337,25 @@ public:
 
     // LUA:build
     // TODO: build, build_lib_shared, build_lib_static
-    static void BuildProject(std::string projectName, std::string version, std::vector<std::string> sourceFiles, std::vector<std::string> headerFiles, std::string compilerFlags, std::string linkerFlags, std::string outputDir) {
-        fmt::println("Building {} (version {})...", projectName, version);
+    static void BuildProject(const sol::this_state lua_state, std::string projectName, std::string version, std::vector<std::string> sourceFiles, std::vector<std::string> headerFiles, std::string compilerFlags, std::string linkerFlags, std::string outputDir) {
+        sol::state_view lua(lua_state);
+
+        if (!make_dir_if_not_exists(outputDir)) {
+            throw std::runtime_error("Failed to create output directory");
+        }
+
+        g_Generator.add({
+            .projectName = projectName,
+            .sourceFiles = sourceFiles,
+            .includeDirs = headerFiles,
+            .dependencies = {},
+            .compilerFlags = compilerFlags,
+            .linkerFlags = linkerFlags,
+            .outputPath = join_paths(outputDir, projectName),
+            .buildType = ProjectBuildType::BUILD_NO_LINK,
+        });
+
+        fmt::println("Adding project {} (version {})...", projectName, version);
         for (const auto& file : sourceFiles) {
             fmt::println("src - {}", file);
         }
@@ -332,11 +365,6 @@ public:
         fmt::println("Compiler flags: {}", compilerFlags);
         fmt::println("Linker flags: {}", linkerFlags);
         fmt::println("Output directory: {}", outputDir);
-        fmt::println("Generating build.ninja");
-        // generate_ninja();
-        fmt::println("Running Ninja");
-        // call_ninja();
-        fmt::println("Done!");
     }
 
     // LUA:find_source_files
@@ -513,9 +541,12 @@ int main(int argc, char* argv[]) {
         ("b,build", "Build the project")
         ("d,dir", "Project directory", cxxopts::value<std::string>()->default_value("./"))
         ("c,config", "Project configuration to use", cxxopts::value<std::string>()->default_value("debug"))
-        ("C,ccompiler", "Which C compiler to use", cxxopts::value<std::string>()->default_value("gcc"))
-        ("CC,cppcompiler", "Which C++ compiler to use", cxxopts::value<std::string>()->default_value("g++"))
-        ("o,output", "Output directory", cxxopts::value<std::string>()->default_value("build/"))
+        ("CC", "Which C compiler to use", cxxopts::value<std::string>()->default_value("gcc")) // TODO
+        ("CXX", "Which C++ compiler to use", cxxopts::value<std::string>()->default_value("g++")) // TODO
+        ("CFLAGS", "Flags to pass to the C compiler", cxxopts::value<std::string>()) // TODO
+        ("CXXFLAGS", "Flags to pass to the C++ compiler", cxxopts::value<std::string>()) // TODO
+        ("LDFLAGS", "Flags to pass to the linker", cxxopts::value<std::string>()) // TODO
+        ("o,output", "Output directory", cxxopts::value<std::string>()->default_value("build/")) // TODO
         ("y,yes", "Answer 'yes' to all warnings (Be cautious!)", cxxopts::value<bool>()->implicit_value("true")->default_value("false"))
         ("h,help", "Print help");
 
@@ -555,6 +586,11 @@ int main(int argc, char* argv[]) {
         std::string buildPath = options_results["output"].as<std::string>();
         std::string config = options_results["config"].as<std::string>();
         run_build_script(projectPath, buildPath, config);
+        fmt::println("Generating build.ninja.");
+        g_Generator.generate();
+        fmt::println("Building project.");
+        g_Generator.build();
+        fmt::println("Process finished.");
         return EXIT_SUCCESS;
     }
 
