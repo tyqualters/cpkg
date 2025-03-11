@@ -11,6 +11,7 @@
 #include <optional>
 #include <chrono>
 #include <future>
+#include <unordered_map>
 
 // Third Party
 #include <fmt/color.h> // {fmt}
@@ -214,13 +215,22 @@ auto find_files_with_extensions(const std::string& path, std::vector<std::string
     return files;
 }
 
-// A BuildConfiguration option that Ninja will use
-struct BuildConfiguration {
+// A BuildConfiguration option that NinjaGenerator will use
+enum class ProjectBuildType {
+    EXECUTABLE,
+    STATIC_LIBRARY,
+    SHARED_LIBRARY,
+    BUILD_NO_LINK // compile but do not call linker
+};
+struct Project {
+    std::string projectName;
     std::vector<std::string> sourceFiles;
     std::vector<std::string> includeDirs;
+    std::unordered_map<std::string, std::string> dependencies;
     std::string compilerFlags;
     std::string linkerFlags;
-    std::string output;
+    std::string outputPath;
+    ProjectBuildType buildType;
 };
 
 class NinjaGenerator {
@@ -228,7 +238,10 @@ public:
     NinjaGenerator() = default;
     ~NinjaGenerator() = default;
 
-    void add(const BuildConfiguration& config) {
+    void add(const Project& project) {
+        if (m_projectNames.contains(project.projectName)) {
+            throw std::runtime_error("Project name already exists.");
+        }
         m_contents << "rule cc\n";
         m_contents << "  command = " << g_tools.cmake.value() << " -E env CC=$CC CXX=$CXX CXXFLAGS=\"$CXXFLAGS $compilerFlags\" LDFLAGS=\"$LDFLAGS $linkerFlags\" cmake --build $buildDir --target $target -- -j $jobs\n";
         m_contents << "  description = Compiling $target\n";
@@ -261,6 +274,7 @@ public:
     }
 
     std::stringstream m_contents;
+    std::unordered_set<std::string> m_projectNames;
 };
 
 class LuaInstance {
@@ -499,6 +513,8 @@ int main(int argc, char* argv[]) {
         ("b,build", "Build the project")
         ("d,dir", "Project directory", cxxopts::value<std::string>()->default_value("./"))
         ("c,config", "Project configuration to use", cxxopts::value<std::string>()->default_value("debug"))
+        ("C,ccompiler", "Which C compiler to use", cxxopts::value<std::string>()->default_value("gcc"))
+        ("CC,cppcompiler", "Which C++ compiler to use", cxxopts::value<std::string>()->default_value("g++"))
         ("o,output", "Output directory", cxxopts::value<std::string>()->default_value("build/"))
         ("y,yes", "Answer 'yes' to all warnings (Be cautious!)", cxxopts::value<bool>()->implicit_value("true")->default_value("false"))
         ("h,help", "Print help");
