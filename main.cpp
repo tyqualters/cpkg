@@ -617,14 +617,15 @@ int os::StartSubprocess(const std::string &programFile, std::vector<std::string>
     // Get exit code
     DWORD exitCode;
     if (GetExitCodeProcess(procInfo.hProcess, &exitCode)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
         return reinterpret_cast<int>(exitCode);
     } else {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
         fmt::print(stderr, FMT_ERROR_COLOR, "Failed to get exit code of process.\n");
         return EXIT_FAILURE;
     }
-
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
 #else
     // Convert arguments to char* const[] format
     std::vector<char*> argv;
