@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <chrono>
 #include <future>
+#include <cstring>
 
 // Third Party
 #include <fmt/color.h> // {fmt}

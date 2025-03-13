@@ -24,4 +24,24 @@ Make it super simple to build with a specific configuration. Just run `cpkg -b -
 
 `cpkg --help`
 
+### Building
+
+This project is developed using CLion. Linux (GCC) and Windows (MS Build Tools 2022).
+
+Dependencies are vendored such that setting up a development environment is easier.
+
+If you do install dependencies yourself on Windows, good luck.
+
+### TODO
+
+**Last updated 3-13-2025**
+
+- [ ] Finish `NinjaGenerator`
+- [ ] Add SSL backend for Windows
+- [ ] Allow Lua files to read command line arguments
+  - Primarily for `-i` (interactive) for configuration
+- [ ] Allow the user to run a specific script with `--script`
+- [ ] Get [getcpkg.net](https://getcpkg.net) up and running
+- [ ] Get [community.getcpkg.net](https://community.getcpkg.net) up and running for Lua scripts
+
 &copy; 2025 Ty Qualters. Project licensed MIT.

@@ -32,7 +32,7 @@ int os::StartSubprocess(const std::string &programFile, std::vector<std::string>
 
     std::string _argv = ss.str();
     char* argv = new char[_argv.size() + 1];
-    std::strcopy(argv, _argv.c_str());
+    std::strcpy(argv, _argv.c_str());
 
     // Define process information
     STARTUPINFOA si;
@@ -52,10 +52,10 @@ int os::StartSubprocess(const std::string &programFile, std::vector<std::string>
 
     // Get exit code
     DWORD exitCode;
-    if (GetExitCodeProcess(procInfo.hProcess, &exitCode)) {
+    if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-        return reinterpret_cast<int>(exitCode);
+        return exitCode;
     } else {
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);

@@ -233,7 +233,8 @@ public:
 
     void run_script(const std::string& scriptPath) {
         if (const auto result = m_lua.safe_script_file(scriptPath); !result.valid()) {
-            fmt::print(stderr, FMT_ERROR_COLOR, "Error in Lua script: {}\n", static_cast<sol::error>(result).what());
+            const sol::error err = result;
+            fmt::print(stderr, FMT_ERROR_COLOR, "Error in Lua script: {}\n", err.what());
             std::exit(EXIT_FAILURE);
         }
     }
@@ -373,14 +374,14 @@ int main(int argc, char* argv[]) {
     }
 
     // Test connection to server if no commands specified
-    []() static -> void {
+    ([]() -> void {
         fmt::println("Testing connection to community server...");
         if (!make_http_request("https://getcpkg.net").has_value()) {
             fmt::print(stderr, FMT_WARNING_COLOR, "Failed to connect to server. Please check your internet connection.\n\n");
         } else {
             fmt::print(FMT_SUCCESS_COLOR, "Server is online!\n\n");
         }
-    }();
+    })();
 
     // Help
     fmt::println("{}", options.help());
