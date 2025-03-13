@@ -1,11 +1,10 @@
-
 -- Quick Reference:
 -- > projectDir: The directory of the project file
 -- > outputDir: The directory to output the build files to
 -- > config: The configuration to build for
 
 -- Project settings
-local projectName = "default"
+local projectName = "test"
 local version = "1.0.0"
 
 -- Project files
@@ -29,6 +28,7 @@ end
 
 -- Debug config
 function debug()
+    compilerFlags = compilerFlags .. ' -DMESSAGE=\'"Hello from Cpkg"\''
     build(projectName, version, sourceFiles, headerFiles, compilerFlags, linkerFlags, outputDir)
 end
 

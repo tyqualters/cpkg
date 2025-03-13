@@ -2,7 +2,6 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 
 // C++ STL
 #include <fstream>
@@ -11,32 +10,17 @@
 #include <optional>
 #include <chrono>
 #include <future>
-#include <unordered_map>
-#include <variant>
 
 // Third Party
 #include <fmt/color.h> // {fmt}
-#include <fmt/xchar.h>
 #include <sol/sol.hpp> // sol2/Lua
 #include <cxxopts.hpp> // cxxopts
-#include <curl/curl.h> // libcurl
 
 // First Party
-#include "ninja_syntax.hpp"
+#include "utils.hpp"
+#include "ninja_generator.hpp"
 
 #define CPKG_VERSION "1.0"
-
-#ifdef _WIN32
-#define _IS_WINDOWS 1
-#else
-#define _IS_WINDOWS 0
-#endif
-
-#define FMT_ERROR_COLOR fmt::fg(fmt::color::red)|fmt::emphasis::bold
-#define FMT_WARNING_COLOR fmt::fg(fmt::color::yellow)|fmt::emphasis::bold
-#define FMT_SUCCESS_COLOR fmt::fg(fmt::color::green)|fmt::emphasis::bold
-
-constexpr bool g_isWindows = _IS_WINDOWS;
 
 static bool g_autoYes = false;
 
@@ -49,6 +33,8 @@ struct Tools {
     std::optional<std::string> clang{};
     std::optional<std::string> msvc{};
 } static g_tools;
+
+NinjaGenerator g_Generator;
 
 /**
  * Feature list required for a build script:
@@ -100,203 +86,6 @@ else
 end
 )lua";
 
-// Check if file exists
-auto inline file_exists(const std::string& path) -> bool {
-    return std::filesystem::exists({path});
-}
-
-// Check if file is directory
-auto inline is_dir(const std::string& path) -> bool {
-    return std::filesystem::is_directory({path});
-}
-
-// Join paths (ex. "/dev", "urandom" => "/dev/urandom")
-auto join_paths(const std::string& absolutePath, const std::string& relativePath) -> std::string {
-    std::filesystem::path _abs{absolutePath};
-    _abs /= {relativePath};
-    return _abs.string();
-}
-
-// System specific functions
-namespace os {
-#if _IS_WINDOWS == 1
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#else
-// #include <unistd.h>
-#include <spawn.h>
-#include <wait.h>
-#endif
-
-    // Start a new process
-    int StartSubprocess(const std::string &programFile, std::vector<std::string> args, const std::string &cwd=".");
-}
-
-typedef std::future<std::pair<bool, std::string>> HttpResponse;
-
-// CURL Write Function for API
-static size_t curl_easy_writefn_str(void *data, const size_t chunkSize, const size_t numChunks, std::string *str) {
-    const size_t totalSize = chunkSize * numChunks;
-    str->append(static_cast<char*>(data), totalSize);
-    return totalSize;
-}
-
-// Check if HttpResponse is ready
-auto inline http_isReady(const HttpResponse& res) -> bool {
-    return res.valid() && res.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-}
-
-// Perform an HTTP GET request
-auto http_get(const std::string& url) -> HttpResponse {
-    return std::async(std::launch::async, [=]() -> std::pair<bool, std::string> {
-            CURL* curl = curl_easy_init();
-            if(curl == nullptr) throw std::runtime_error("Could not initialize CURL.");
-
-            fmt::println("GET {}", url);
-            // general configuration
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-
-            // receive data
-            std::string data;
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_easy_writefn_str);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
-
-            // send the request
-            if(const CURLcode res = curl_easy_perform(curl); res != CURLE_OK) {
-                curl_easy_cleanup(curl);
-                return std::make_pair<bool, std::string>(false, std::string(curl_easy_strerror(res)));
-            }
-
-            // request succeeded
-            curl_easy_cleanup(curl);
-
-            return std::make_pair<bool, std::string>(true, std::move(data));
-        });
-}
-
-// Perform an automated blocking HTTP GET request
-auto make_http_request(const std::string& url) -> std::optional<std::string> {
-    auto req = http_get(url);
-
-    if (req.valid()) {
-        req.wait();
-    } else {
-        fmt::print(stderr, FMT_ERROR_COLOR, "HTTP Request invalid\n");
-        return std::nullopt;
-    }
-
-    if (auto [success, data] = req.get(); success)
-        return data;
-    else {
-        fmt::print(stderr, FMT_ERROR_COLOR, "HTTP Request failed: {}\n", data);
-        return std::nullopt;
-    }
-}
-
-auto make_dir_if_not_exists(const std::string& path) -> bool {
-    if (file_exists(path)) {
-        if (is_dir(path)) {
-            return true;
-        } else {
-            fmt::print(stderr, FMT_ERROR_COLOR, "Path exists but is not a directory: {}\n", path);
-            return false;
-        }
-    } else {
-        if (std::filesystem::create_directories({path})) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// TODO: Add Directory Constraints to all Lua functions
-auto directory_constraint_test(const std::string& projectPath, const std::string& givenPath) -> bool {
-    const auto absoluteProjectPath = std::filesystem::absolute(std::filesystem::canonical({projectPath}));
-    const auto absoluteGivenPath = std::filesystem::absolute(std::filesystem::canonical({givenPath}));
-
-    return absoluteGivenPath.string().starts_with(absoluteProjectPath.string());
-}
-
-// Find all files with extension in a directory
-auto find_files_with_extensions(const std::string& path, std::vector<std::string>&& extensions) {
-    std::vector<std::string> files{};
-    if (file_exists(path) && is_dir(path)) {
-        for (const auto& directory_entry : std::filesystem::recursive_directory_iterator(path)) {
-            if (directory_entry.is_regular_file()) {
-                if (auto ext = directory_entry.path().extension(); std::find(extensions.begin(), extensions.end(), ext) != extensions.end()) {
-                    files.push_back(directory_entry.path().string());
-                }
-            }
-        }
-    }
-    return files;
-}
-
-// A BuildConfiguration option that NinjaGenerator will use
-enum class ProjectBuildType {
-    EXECUTABLE,
-    STATIC_LIBRARY,
-    SHARED_LIBRARY,
-    BUILD_NO_LINK // compile but do not call linker
-};
-struct Project {
-    std::string projectName;
-    std::vector<std::string> sourceFiles;
-    std::vector<std::string> includeDirs;
-    std::unordered_map<std::string, std::string> dependencies;
-    std::string compilerFlags;
-    std::string linkerFlags;
-    std::string outputPath;
-    ProjectBuildType buildType;
-};
-
-class NinjaGenerator {
-public:
-    NinjaGenerator() = default;
-    ~NinjaGenerator() = default;
-
-    void add(const Project& project) {
-        if (m_projectNames.contains(project.projectName)) {
-            throw std::runtime_error("Project name already exists.");
-        }
-        m_contents << "rule cc\n";
-        m_contents << "  command = " << g_tools.cmake.value() << " -E env CC=$CC CXX=$CXX CXXFLAGS=\"$CXXFLAGS $compilerFlags\" LDFLAGS=\"$LDFLAGS $linkerFlags\" cmake --build $buildDir --target $target -- -j $jobs\n";
-        m_contents << "  description = Compiling $target\n";
-        m_contents << "  depfile = $out.d\n";
-        m_contents << "  deps = gcc\n";
-        m_contents << "\n";
-        m_contents << "rule link\n";
-        m_contents << "  command = " << g_tools.cmake.value() << " -E env CC=$CC CXX=$CXX CXXFLAGS=\"$CXXFLAGS $compilerFlags\" LDFLAGS=\"$LDFLAGS $linkerFlags\" cmake --build $buildDir --target $target -- -j $jobs\n";
-        m_contents << "  description = Linking $target\n";
-    }
-
-    void reset() {
-        m_contents.clear();
-        m_contents.str("");
-    }
-
-    // Generate build.ninja
-    void generate() const {
-        std::ofstream ofs("build.ninja");
-        if (!ofs.is_open()) {
-            throw std::runtime_error("Failed to open build.ninja");
-        }
-        ofs << m_contents.str();
-        ofs.close();
-    }
-
-    // Call Ninja
-    static void build() {
-        os::StartSubprocess(g_tools.ninja.value(), {});
-    }
-
-    std::stringstream m_contents;
-    std::unordered_set<std::string> m_projectNames;
-} g_Generator;
-
 class LuaInstance {
 public:
     LuaInstance() {
@@ -337,6 +126,16 @@ public:
     // LUA:file_exists
     static bool FileExists(const std::string& path) {
         return file_exists(path);
+    }
+
+    // LUA:dir_exists
+    static bool DirectoryExists(const std::string& path) {
+        return is_dir(path);
+    }
+
+    // LUA:is_dir
+    static bool IsDir(const std::string& path) {
+        return is_dir(path);
     }
 
     // LUA:build
@@ -420,6 +219,8 @@ public:
     // Bind C++ functions to Lua
     void bind_functions() {
         m_lua.set_function("file_exists", &LuaInstance::FileExists);
+        m_lua.set_function("dir_exists", &LuaInstance::DirectoryExists);
+        m_lua.set_function("is_dir", &LuaInstance::IsDir);
         m_lua.set_function("build", &LuaInstance::BuildProject);
         m_lua.set_function("find_source_files", &LuaInstance::FindSourceFiles);
         m_lua.set_function("find_module_files", &LuaInstance::FindModuleFiles);
@@ -472,55 +273,11 @@ auto run_build_script(const std::string& projectPath, const std::string& buildPa
     lua.run_script(buildScriptPath);
 }
 
-// Get all directories in PATH environment variable
-auto inline get_path_dirs() -> std::vector<std::string> {
-    const auto* path = std::getenv("PATH");
-
-    constexpr char delim = (g_isWindows ? ';' : ':');
-    std::string tmp;
-    std::stringstream ss(path);
-    std::vector<std::string> dirs;
-
-    while(std::getline(ss, tmp, delim)){
-        dirs.push_back(tmp);
-    }
-
-    return dirs;
-}
-
-// Find an executable in PATH
-auto find_exe(std::string&& name) -> std::optional<std::string> {
-    const std::string executable = name + std::string(g_isWindows ? ".exe" : "");
-
-    // Check for an existing ninja executable
-    for (auto dirs = get_path_dirs(); const auto& dir : dirs) {
-        if (auto path = join_paths(dir, executable); file_exists(path)) {
-            return path;
-        }
-    }
-
-    return std::nullopt;
-}
-
 /* MAIN FUNCTION */
 
 int main(int argc, char* argv[]) {
     fmt::println("cpkg version " CPKG_VERSION " \u00A9 Ty Qualters 2025");
     fmt::println("Bundled with Lua " LUA_VERSION_MAJOR "." LUA_VERSION_MINOR "\n");
-
-    NinjaWriter writer;
-    writer.variable("cc", "gcc");
-    writer.rule("cc", "$cc $cflags -c -o $out $in");
-    writer.rule("ld", "$cc -o $out $in $ldflags");
-    writer.build("main", "ld", std::vector<std::string>{"main.o", "lib.o"});
-    writer.build("main.o", "cc", "main.c");
-    writer.build("lib.o", "cc", "lib.c", {"lib.h"});
-
-    fmt::println("{}", writer.string());
-
-    std::cin.get();
-    return 0;
-    // os::StartSubprocess("/bin/ls", {"-l"}, ".");
 
     // CURL: RAII init and clean up
     struct _curl {
@@ -605,7 +362,7 @@ int main(int argc, char* argv[]) {
         fmt::println("Generating build.ninja.");
         g_Generator.generate();
         fmt::println("Building project.");
-        g_Generator.build();
+        os::StartSubprocess(g_tools.ninja.value(), {});
         fmt::println("Process finished.");
         return EXIT_SUCCESS;
     }
@@ -623,110 +380,6 @@ int main(int argc, char* argv[]) {
     // Help
     fmt::println("{}", options.help());
     return EXIT_SUCCESS;
-}
-
-/* SYSTEM SPECIFIC FEATURES */
-int os::StartSubprocess(const std::string &programFile, std::vector<std::string> args, const std::string &cwd) {
-    if (!file_exists(programFile)) {
-        throw std::runtime_error("Program not found.");
-    }
-
-    // Use this as first argument in argv
-    auto programName = std::filesystem::path{programFile}.filename().string();
-
-#if _IS_WINDOWS == 1
-    // TODO: Test Windows
-
-    // Convert arguments to char* format
-    std::stringstream ss;
-    for (size_t i = 0; i < args.size(); ++i) {
-        ss << args[i];
-        if (i != args.size() - 1) {
-            ss << " ";
-        }
-    }
-
-    std::string _argv = ss.str();
-    char* argv = new char[_argv.size() + 1];
-    std::strcopy(argv, _argv.c_str());
-
-    // Define process information
-    STARTUPINFOA si;
-    PROCESS_INFORMATION pi;
-
-    memset(&si, 0, sizeof(si));
-    si.cb = sizeof(si);
-    memset(&pi, 0, sizeof(pi));
-
-    // Start the process
-    if (CreateProcessA(programFile.c_str(), argv, nullptr, nullptr, FALSE, 0, nullptr, cwd.c_str(), &si, &pi) != TRUE) {
-        throw std::system_error(GetLastError(), std::system_category(), "Failed to start process at " + programFile);
-    }
-
-    // Wait for process to end
-    WaitForSingleObject(pi.hProcess, INFINITE);
-
-    // Get exit code
-    DWORD exitCode;
-    if (GetExitCodeProcess(procInfo.hProcess, &exitCode)) {
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        return reinterpret_cast<int>(exitCode);
-    } else {
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
-        fmt::print(stderr, FMT_ERROR_COLOR, "Failed to get exit code of process.\n");
-        return EXIT_FAILURE;
-    }
-#else
-    // Convert arguments to char* const[] format
-    std::vector<char*> argv;
-    argv.reserve(args.size() + 2U);
-    argv.push_back(const_cast<char*>(programName.c_str()));
-    for (const auto& arg : args) {
-        argv.push_back(const_cast<char*>(arg.c_str()));
-    }
-    argv.push_back(nullptr);
-
-    // Set attributes
-    posix_spawn_file_actions_t file_actions;
-    posix_spawnattr_t attr;
-    if (const int ret = posix_spawn_file_actions_init(&file_actions); ret != 0) {
-        throw std::system_error(ret, std::system_category(), "Failed to initialize spawn file actions.");
-    }
-    if (const int ret = posix_spawnattr_init(&attr); ret != 0) {
-        throw std::system_error(ret, std::system_category(), "Failed to initialize spawn attributes.");
-    }
-
-    // Change current working directory
-    if (cwd != ".")
-        if (const int ret = posix_spawn_file_actions_addchdir_np(&file_actions, cwd.c_str()); ret != 0) {
-            throw std::system_error(ret, std::system_category(), "Failed to change spawn current working directory.");
-        }
-
-    // Start the process
-    fmt::println("CMD {} {}", programFile.c_str(), fmt::join(args, " "));
-    pid_t pid;
-    if (const int ret = posix_spawn(&pid, programFile.c_str(), &file_actions, &attr, argv.data(), environ); ret != 0) {
-        throw std::system_error(ret, std::system_category(), "Failed to start process at " + programFile);
-    }
-
-    // Wait for process to end
-    int status;
-    waitpid(pid, &status, 0);
-
-    // Clean up
-    posix_spawn_file_actions_destroy(&file_actions);
-    posix_spawnattr_destroy(&attr);
-
-    // Return the process exit code
-    if (WIFEXITED(status)) {
-        return WEXITSTATUS(status);
-    } else {
-        fmt::print(stderr, FMT_ERROR_COLOR, "{} exited abnormally.\n", programName);
-        return EXIT_FAILURE;
-    }
-#endif
 }
 
 /* END OF FILE */

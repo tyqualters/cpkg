@@ -4,7 +4,7 @@ project(cpkg)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(cpkg src/main.cpp src/ninja_syntax.cpp src/ninja_syntax.hpp)
+add_executable(cpkg src/main.cpp src/ninja_syntax.cpp src/ninja_syntax.hpp src/ninja_generator.cpp src/ninja_generator.hpp src/utils.cpp src/utils.hpp)
 
 # sol2
 target_include_directories(cpkg PRIVATE vendor/sol2-3.3.0/single/single/include)
