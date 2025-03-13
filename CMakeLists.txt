@@ -13,6 +13,7 @@ endif()
 if(WIN32)
     # Need to tell the binaries to build in same DIR so Debug will work...
     # I really hate Windows
+    # Note: You MUST copy the openssl .dll files into the binary dir because it is not built with CMake...
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
@@ -34,7 +35,7 @@ add_subdirectory(vendor/cxxopts-3.2.0)
 target_link_libraries(cpkg PRIVATE cxxopts::cxxopts)
 target_include_directories(cpkg PRIVATE cxxopts-3.2.0/include)
 
-# libpsl (I have spent 5 hours trying to get this to work...)
+# libpsl (I have spent 5 hours trying to get this to work...) | Vendored Windows only
 # Also had to comment out Lines 1295-1297 and add link_libraries(Libpsl) in CURL's CMakeLists.txt to get this to work.
 # THIS IS THE KIND OF ISSUE I WANT TO PREVENT WITH THIS PROJECT!!!
 if(WIN32)
@@ -78,7 +79,7 @@ if(WIN32)
     # Run: ninja
 endif()
 
-# openssl
+# openssl | Vendored Windows only
 if(WIN32)
     set(OPENSSL_ROOT_DIR vendor/openssl-3.4.1)
     include(vendor/openssl-3.4.1/OpenSSLConfig.cmake)
@@ -99,6 +100,11 @@ if(WIN32)
 endif()
 
 # libcurl
-add_subdirectory(vendor/curl-8.12.1)
+if(WIN32)
+    add_subdirectory(vendor/curl-8.12.1) # Vendored Windows only
+else()
+    find_package(CURL REQUIRED) # Use system CURL for Linux (automatically includes OpenSSL)
+endif()
+
 target_link_libraries(cpkg PRIVATE CURL::libcurl)
 target_include_directories(cpkg PRIVATE curl-8.12.1/include)
