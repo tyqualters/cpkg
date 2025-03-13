@@ -37,7 +37,7 @@ If you do install dependencies yourself on Windows, good luck.
 **Last updated 3-13-2025**
 
 - [ ] Finish `NinjaGenerator`
-- [ ] Add SSL backend for Windows
+- [x] Add SSL backend for Windows
 - [ ] Allow Lua files to read command line arguments
   - Primarily for `-i` (interactive) for configuration
 - [ ] Allow the user to run a specific script with `--script`
