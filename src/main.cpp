@@ -387,7 +387,9 @@ int main(int argc, char* argv[]) {
     // Run a script
     if(options_results.count("script")) {
         std::string scriptPath = options_results["script"].as<std::string>();
+        fmt::println("Running script.");
         run_lua_script(scriptPath);
+        fmt::println("Process finished.");
         return EXIT_SUCCESS;
     }
 

@@ -40,7 +40,7 @@ If you do install dependencies yourself on Windows, good luck.
 - [x] Add SSL backend for Windows
 - [ ] Allow Lua files to read command line arguments
   - Primarily for `-i` (interactive) for configuration
-- [ ] Allow the user to run a specific script with `--script`
+- [x] Allow the user to run a specific script with `--script`
 - [ ] Get [getcpkg.net](https://getcpkg.net) up and running
 - [ ] Get [community.getcpkg.net](https://community.getcpkg.net) up and running for Lua scripts
 
