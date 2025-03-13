@@ -243,6 +243,16 @@ private:
     sol::state m_lua;
 };
 
+// cpkg --script
+auto run_lua_script(const std::string& luaScriptPath) {
+    if(!file_exists(luaScriptPath)) throw std::runtime_error("File does not exist.");
+    LuaInstance lua;
+    lua.get().set("projectDir", sol::nil);
+    lua.get().set("outputDir", sol::nil);
+    lua.get().set("config", sol::nil);
+    lua.run_script(luaScriptPath);
+}
+
 // cpkg --build
 auto run_build_script(const std::string& projectPath, const std::string& buildPath, const std::string& config) {
     auto buildScriptPath = join_paths(projectPath, "cpkg.lua");
@@ -318,6 +328,7 @@ int main(int argc, char* argv[]) {
     options.add_options()
         ("i,init", "Generate a cpkg.lua file")
         ("b,build", "Build the project")
+        ("script", "Run a Lua script", cxxopts::value<std::string>())
         ("d,dir", "Project directory", cxxopts::value<std::string>()->default_value("./"))
         ("c,config", "Project configuration to use", cxxopts::value<std::string>()->default_value("debug"))
         ("CC", "Which C compiler to use", cxxopts::value<std::string>()->default_value("gcc")) // TODO
@@ -370,6 +381,13 @@ int main(int argc, char* argv[]) {
         fmt::println("Building project.");
         os::StartSubprocess(g_tools.ninja.value(), {});
         fmt::println("Process finished.");
+        return EXIT_SUCCESS;
+    }
+
+    // Run a script
+    if(options_results.count("script")) {
+        std::string scriptPath = options_results["script"].as<std::string>();
+        run_lua_script(scriptPath);
         return EXIT_SUCCESS;
     }
 

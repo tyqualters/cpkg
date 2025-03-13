@@ -60,6 +60,9 @@ if(WIN32)
     # Check the CWD for DLLs
     set_target_properties(cpkg PROPERTIES INSTALL_RPATH "${CMAKE_CURRENT_BINARY_DIR}")
 
+    # Set env variable for PSL
+    set(PSL_DATABASE ${CMAKE_CURRENT_SOURCE_DIR}/vendor/libpsl-0.21.5/list/public_suffix_list.dat)
+
     # How to build Libpsl (recommended):
     # Install Python3 and Pip3
     # pip3 install meson
@@ -73,6 +76,26 @@ if(WIN32)
     # Run: meson builddir --buildtype=release -Ddefault_both_libraries=static -Ddefault_library=static --backend=ninja
     # Run: cd builddir
     # Run: ninja
+endif()
+
+# openssl
+if(WIN32)
+    set(OPENSSL_ROOT_DIR vendor/openssl-3.4.1)
+    include(vendor/openssl-3.4.1/OpenSSLConfig.cmake)
+    find_package(OpenSSL REQUIRED)
+    target_include_directories(cpkg PUBLIC vendor/openssl-3.4.1/include)
+    link_libraries(OpenSSL::SSL OpenSSL::Crypto)
+
+    # Enable SSL for libcurl
+    set(CURL_SSL_BACKEND OpenSSL)
+    set(CURL_USE_SSL ON)
+
+    # Add definitions for compiling with SSL
+    add_compile_definitions(CURL_SSL_BACKEND=OpenSSL)
+    add_compile_definitions(CURL_USE_SSL=ON)
+
+    # Ensure libcurl is built with OpenSSL
+    set(USE_OPENSSL ON)
 endif()
 
 # libcurl

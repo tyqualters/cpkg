@@ -74,6 +74,11 @@ auto inline http_get(const std::string& url) -> HttpResponse {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
             curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
+            // This is REQUIRED for Windows SSL Certificate Store
+            if constexpr (g_isWindows) {
+                curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+            }
+
             // receive data
             std::string data;
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_easy_writefn_str);
