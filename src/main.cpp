@@ -269,6 +269,11 @@ auto run_build_script(const std::string& projectPath, const std::string& buildPa
     lua.get().set("projectDir", projectPath);
     lua.get().set("outputDir", join_paths(projectPath, buildPath));
     lua.get().set("config", "debug");
+    if (g_isWindows) {
+        lua.get().set("platform", "windows");
+    } else {
+        lua.get().set("platform", "unix");
+    }
 
     lua.run_script(buildScriptPath);
 }
