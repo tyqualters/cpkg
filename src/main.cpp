@@ -26,12 +26,23 @@ static bool g_autoYes = false;
 
 // Locations of executables
 struct Tools {
-    std::optional<std::string> ninja{};
-    std::optional<std::string> cmake{};
-    std::optional<std::string> make{};
-    std::optional<std::string> gcc{};
-    std::optional<std::string> clang{};
-    std::optional<std::string> msvc{};
+    std::optional<std::string> ninja{}; // Ninja Build System,
+    std::optional<std::string> cmake{}; // CMake Build System Generator
+    std::optional<std::string> make{}; // Make Build System
+    std::optional<std::string> gcc{}; // GCC compiler
+    std::optional<std::string> gpp{}; // GCC C++ compiler
+    std::optional<std::string> clang{}; // Clang C compiler
+    std::optional<std::string> clangpp{}; // Clang C++ compiler
+    // Linux
+    std::optional<std::string> ar{}; // Linux Archive (.a) Packager
+    // Windows
+    std::optional<std::string> msvc_cl{}; // Microsoft Visual C++ Compiler
+    std::optional<std::string> msvc_link{}; // Microsoft Visual C++ Linker
+    std::optional<std::string> msvc_lib{}; // Microsoft Visual C++ Library Manager
+    std::optional<std::string> ms_build{}; // Microsoft Build System (.sln)
+    std::optional<std::string> ms_nmake{}; // Microsoft NMake Build System
+    // std::optional<std::string> msvc_rc{}; // Microsoft Resource Compiler
+    // std::optional<std::string> msvc_mt{}; // Microsoft Manifest Tool
 } static g_tools;
 
 NinjaGenerator g_Generator;
@@ -152,8 +163,7 @@ public:
             .sourceFiles = sourceFiles,
             .includeDirs = headerFiles,
             .dependencies = {},
-            .compilerFlags = compilerFlags,
-            .linkerFlags = linkerFlags,
+            .flags = {compilerFlags, linkerFlags},
             .outputPath = join_paths(outputDir, projectName),
             .buildType = ProjectBuildType::BUILD_NO_LINK,
         });
@@ -379,7 +389,7 @@ int main(int argc, char* argv[]) {
         fmt::println("Generating build.ninja.");
         g_Generator.generate();
         fmt::println("Building project.");
-        os::StartSubprocess(g_tools.ninja.value(), {});
+        // os::StartSubprocess(g_tools.ninja.value(), {});
         fmt::println("Process finished.");
         return EXIT_SUCCESS;
     }
