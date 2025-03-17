@@ -83,40 +83,125 @@ std::vector<std::string> FindHeadersInFile(const std::string fileName) {
 
 void NinjaGenerator::generate() {
 
-    // TODO: Pass list of compilers
-    // TODO: Windows ofc
+    // TODO: Iterate thru each Project
+    //  Add the compiler to rules (i.e., gcc_cc)
+    //  Choose to build with the compiler
 
-    // default
-    std::string cc = "gcc", cxx = "g++", ld = "g++", ar = "ar";
+    // Default to MSVC on Windows
+    // Default to GCC on Linux
+
+    std::string cc, cxx, ld, ar;
 
     if constexpr(g_isWindows) {
+
+    } else {
+
+    }
+
+    m_writer.comment("Global variables");
+
+    bool _use_msvc = false, _use_gcc = false, _use_clang = false;
+    for(const auto& project : m_projects) {
+        switch(project.compiler) {
+            case CompilerType::GCC:
+                _use_gcc = true;
+            break;
+            case CompilerType::MSVC:
+                _use_msvc = true;
+            break;
+            case CompilerType::CLANG:
+                _use_clang = true;
+            break;
+            default:
+                throw std::runtime_error("Unknown compiler");
+        }
+    }
+
+    if(!_use_msvc && !_use_gcc && !_use_clang) {
+        throw std::runtime_error("No compiler selected!");
+    }
+
+    // Add if used
+    if(_use_gcc) {
+        cc = "gcc";
+        cxx = "g++";
+        ld = "g++";
+        ar = "ar";
+        m_writer.variable("gcc_cc", cc);
+        m_writer.variable("gcc_cxx", cxx);
+        m_writer.variable("gcc_ld", ld);
+        m_writer.variable("gcc_ar", ar);
+    }
+
+    // Add if used
+    if(_use_msvc) {
         cc = "cl";
         cxx = "cl";
         ld = "link";
         ar = "lib";
+        m_writer.variable("msvc_cc", cc);
+        m_writer.variable("msvc_cxx", cxx);
+        m_writer.variable("msvc_ld", ld);
+        m_writer.variable("msvc_ar", ar);
     }
 
-    m_writer.comment("Global variables");
+    // Add if used
+    if(_use_clang) {
+        cc = "clang";
+        cxx = "clang++";
+        ld = "clang++";
+        ar = "ar";
+        m_writer.variable("clang_cc", cc);
+        m_writer.variable("clang_cxx", cxx);
+        m_writer.variable("clang_ld", ld);
+        m_writer.variable("clang_ar", ar);
+    }
+
+    // Default values (cc, cxx, ld, ar)
+    if constexpr(g_isWindows) {
+        // use MSVC or use next avail.
+    } else {
+        // use GCC or use clang
+    }
+
     m_writer.variable("cc", cc);
     m_writer.variable("cxx", cxx);
     m_writer.variable("ld", ld);
     m_writer.variable("ar", ar);
+
     m_writer.variable("cflags", "");
     m_writer.variable("ldflags", "");
     m_writer.newline();
 
     m_writer.comment("Global rules");
-    if(cc == "gcc") {
-        m_writer.rule("cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
-    } else if(cc == "cl") {
-        m_writer.rule("cc", "$cxx /c $in $cflags /Fo $out", "Compiling $in to $out");
+    if (_use_msvc) {
+        // MSVC
+        m_writer.rule("msvc_cc", "$cxx /c $in $cflags /Fo $out", "Compiling $in to $out");
+        m_writer.rule("msvc_ld", "$ld $in $ldflags -o $out", "Linking $in to $out");
+        m_writer.rule("msvc_ar", "/out:$out $in", "Archiving $in to $out");
     }
-    m_writer.rule("ld", "$ld $in $ldflags -o $out", "Linking $in to $out");
-    if(ar == "ar") {
-        m_writer.rule("ar", "$ar rcs $out $in ", "Archiving $in to $out");
-    } else if (ar == "lib") {
-        m_writer.rule("ar", "/out:$out $in", "Archiving $in to $out");
+
+    if (_use_gcc) {
+        // GCC
+        m_writer.rule("gcc_cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
+        m_writer.rule("gcc_ld", "$ld $in $ldflags -o $out", "Linking $in to $out"); // TODO
+        m_writer.rule("gcc_ar", "$ar rcs $out $in ", "Archiving $in to $out");
     }
+
+    if(_use_clang) {
+        // Clang
+        m_writer.rule("clang_cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
+        m_writer.rule("clang_ld", "$ld $in $ldflags -o $out", "Linking $in to $out"); // TODO
+        m_writer.rule("clang_ar", "$ar rcs $out $in ", "Archiving $in to $out");
+    }
+
+    // Default rules (cc, cxx, ld, ar)
+    if constexpr(g_isWindows) {
+        // use MSVC or next avail.
+    } else {
+        // use GCC or clang
+    }
+
     m_writer.newline();
 
     // Step 1. Source files
@@ -134,8 +219,15 @@ void NinjaGenerator::generate() {
                     cxxflags += " " + depProject.cxxFlagsOut;
                     ldflags += " " + depProject.ldFlagsOut;
                     for (const auto& includeDir: depProject.includeDirs) {
-                        cflags += " -I" + includeDir;
-                        cxxflags += " -I" + includeDir;
+                        if (project.compiler == CompilerType::MSVC) {
+                            // MSVC
+                            cflags += " /I" + includeDir;
+                            cxxflags += " /I" + includeDir;
+                        } else {
+                            // GCC
+                            cflags += " -I" + includeDir;
+                            cxxflags += " -I" + includeDir;
+                        }
                     }
                     goto foundDep; // hehe goto ftw
                 }
@@ -146,10 +238,53 @@ foundDep:
             continue; // required here for msvc
         }
 
+        // Add compiler
+        if constexpr(g_isWindows) {
+            if(project.compiler != CompilerType::MSVC) {
+                switch(project.compiler) {
+                    case CompilerType::GCC:
+                        m_writer.variable("cc", "gcc", 1);
+                        m_writer.variable("cxx", "g++", 1);
+                        m_writer.variable("ld", "g++", 1);
+                        m_writer.variable("ar", "ar", 1);
+                        break;
+                    case CompilerType::CLANG:
+                        m_writer.variable("cc", "clang", 1);
+                        m_writer.variable("cxx", "clang++", 1);
+                        m_writer.variable("ld", "clang++", 1);
+                        m_writer.variable("ar", "ar", 1);
+                        break;
+                    default:
+                        throw std::runtime_error("Unknown compiler.");
+                }
+            }
+        } else {
+            if(project.compiler != CompilerType::GCC) {
+                // NOTE: CANNOT BE MSVC
+                switch(project.compiler) {
+                    case CompilerType::CLANG:
+                        m_writer.variable("cc", "clang", 1);
+                        m_writer.variable("cxx", "clang++", 1);
+                        m_writer.variable("ld", "clang++", 1);
+                        m_writer.variable("ar", "ar", 1);
+                        break;
+                    default:
+                        throw std::runtime_error("Unknown compiler.");
+                }
+            }
+        }
+
         // Iterate thru include dirs
         for (const auto& includeDir : project.includeDirs) {
-            cflags += " -I" + includeDir;
-            cxxflags += " -I" + includeDir;
+            if (project.compiler == CompilerType::MSVC) {
+                // MSVC
+                cflags += " /I" + includeDir;
+                cxxflags += " /I" + includeDir;
+            } else {
+                // GCC
+                cflags += " -I" + includeDir;
+                cxxflags += " -I" + includeDir;
+            }
         }
 
         // Iterate thru lib dirs
