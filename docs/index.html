@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        <meta charset="utf-8" />
+        <title>CarePackage | A simple project management tool</title>
+    </head>
+    <body>
+        <header>
+            <hgroup>
+                <h1>cpkg</h1>
+                <h3>A simple project management tool</h3>
+            </hgroup>
+            <nav>
+                <span>Nav: </span>
+                <a href="#about">About</a>
+                <a href="#install">Install</a>
+                <a href="#lua">Lua</a>
+                <a href="#license">License</a>
+            </nav>
+        </header>
+        <main>
+            <section id="about">
+                <hgroup>
+                    <h1>About</h1>
+                </hgroup>
+                <p>With existing solutions, project/dependency management is extremely complex in C and C++ projects.</p>
+                <p>The most versatile solution is generally a CMake project whereas the most configurable is generally a Python script.</p>
+                <p>To achieve the best qualities of both, with a minimalist approach, cpkg uses Lua and Ninja to allow for a custom, yet simple and powerful build script.</p>
+            </section>
+            <section id="install">
+                <hgroup>
+                    <h1>Installation</h1>
+                </hgroup>
+                <section>
+                    <h4>Download</h4>
+                    <p>You can download the latest release of cpkg from the official <a href="https://github.com/tyqualters/cpkg">GitHub repository</a>.</p>
+                </section>
+                <section>
+                    <h4>CMake</h4>
+                    <p>cpkg is built using CMake. Just run <code>cmake .</code> and then <code>cmake -B build -S .</code> to build the project.</p>
+                    <p>Support for Windows 11 and Linux. Requires C23/C++23.</p>
+                    <p>Windows users may require a <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist">Microsoft Visual C++ Redistributable</a> package. Linux users may need to update glibc.</p>
+                    <p>Lua is embedded in cpkg. However, build tools binaries (including Ninja) must be present in the PATH environment variable in order for cpkg to work.</p>
+                </section>
+                </section>
+                <section>
+            <section id="lua">
+                <hgroup>
+                    <h1>Lua</h1>
+                    <p>Quick reference</p>
+                </hgroup>
+                <section id="lua-global-vars">
+                    <h4>Variables</h4>
+                    <ul>
+                        <li>projectDir - <em>The project directory</em></li>
+                        <li>outputDir - <em>The build directory (default: ./build)</em></li>
+                        <li>config - <em>The configuration to use (default: debug)</em></li>
+                    </ul>
+                </section>
+                <section id="lua-functions">
+                    <h4>Functions</h4>
+                    <ul>
+                        <li>file_exists(string path) - <em>Returns true/false if a file exists</em></li>
+                        <li>dir_exists(string path) - <em>Returns true/false if a path exists and is a directory</em></li>
+                        <li>is_dir(string path) - <em>Returns true/false if a path is a directory</em></li>
+                        <li>add_project(string name, string version, string[] sourceFiles, string[] includeDirs, string[] libDirs, string[] dependencies, string cFlags, string cxxFlags, string ldFlags, string outputDir, string buildType, string compiler, string cFlagsExport, string cxxFlagsExport, string ldFlagsExport) - <em>Adds a project</em></li>
+                        <li>build() - <em>Generates build.ninja and calls Ninja</em></li>
+                        <li>find_source_files(string path) - <em>Gets a list of all the source files in a directory</em></li>
+                        <li>find_module_files(string path) - <em>Gets a list of all the module files in a directory</em></li>
+                        <li>find_header_files(string path) - <em>Gets a list of all the header files in a directory</em></li>
+                        <li>cmake() - <em>Call CMake (INOP)</em></li>
+                        <li>http_get(string url) - <em>Return content from HTTP GET request</em></li>
+                        <li>download(string url, string fileName) - <em>Download content from HTTP GET request</em></li>
+                        <li>read_file(string path) - <em>Returns the content of a file</em></li>
+                    </ul>
+                    <p>It is important to note that these are C++ exported functions. Mismatched types will cause exceptions.</p>
+                </section>
+                <section id="lua-example">
+                    <h4>Example cpkg.lua file</h4>
+                    <pre>
+-- Quick Reference:
+-- > projectDir: The directory of the project file
+-- > outputDir: The directory to output the build files to
+-- > config: The configuration to build for
+
+-- Project settings
+local projectName = "myProject"
+local version = "1.0.0"
+
+-- Project files
+local sourceFiles = find_source_files(projectDir .. "/src")
+local includeDirs = find_header_files(projectDir .. "/include")
+local cFlags = ""
+local ldFlags = ""
+
+-- Debug config
+function debug()
+    add_project(
+        projectName,                  -- Name
+        "1.0.0",                      -- Version
+        sourceFiles,                  -- Source files (Lua array -> std::vector<std::string>)
+        includeDirs,                  -- Include directories (Lua array -> std::vector<std::string>)
+        {},                           -- Library directories (Lua array -> std::vector<std::string>)
+        {},                           -- Dependencies (Lua array -> std::vector<std::string>)
+        cFlags, cFlags, ldFlags,      -- (C,CXX,LD) Flags
+        outputDir,                    -- Output directory
+        "executable",                 -- Build type
+        "gcc",                        -- Compiler
+        "", "", ""                    -- (C,CXX,LD) Export Flags
+    )
+
+    build()
+end
+
+if config == "debug" then
+    debug()
+else
+    print('To do: add more configs')
+end
+                    </pre>
+                    <h4>Online Lua files</h4>
+                    <p>The thing that makes cpkg unique is that you can pretty easily run external scripts. Here's an example:</p>
+                    <pre>
+-- Download an online test file
+if not file_exists("test.lua") then
+    download('https://raw.githubusercontent.com/tyqualters/voidtools/refs/heads/master/scripts/example_file.lua', 'test.lua')
+end
+
+-- Load the test file and run it
+local test, err = load(read_file('test.lua'))
+if test then
+    test()
+else
+    print(err)
+end
+                    </pre>
+                    <p>Commit to the community. Publish a script that can download, configure, build and import a package automatically.<br />This feature was intentionally added to allow for cross-platform pseudo-package management without limitations.</p>
+                    <strong>Just be cautious! Always review Lua files before you run them!</strong>
+                </section>
+            </section>
+            <section id="license">
+                <hgroup>
+                    <h1>License</h1>
+                </hgroup>
+                <p>The core cpkg project is licensed MIT.</p>
+                <p>Please check individual files as they may have differing licenses. (Ex. src/ninja_syntax.cpp and src/ninja_syntax.hpp both licensed Apache-2.0)</p>
+                <p>For dependency (vendor) licenses, see their respective LICENSE, COPYING, NOTICE, or README files.</p>
+            </section>
+        </main>
+        <footer>
+            &copy; 2025 Ty Qualters
+        </footer>
+    </body>
+</html>
