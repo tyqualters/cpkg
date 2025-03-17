@@ -1,10 +1,9 @@
 #include <iostream>
 
-#ifndef MESSAGE
-#define MESSAGE "No message specified."
-#endif
+#include "lib.h"
 
 int main() {
-    std::cout << MESSAGE << std::endl;
+    hello();
+    std::cout << "Hello World!" << std::endl;
     return 0;
 }

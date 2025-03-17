@@ -78,8 +78,10 @@ enum class CompilerType {
 };
 struct Project {
     std::string projectName;
+    std::string version;
     std::vector<std::string> sourceFiles;
     std::vector<std::string> includeDirs;
+    std::vector<std::string> libDirs;
     std::vector<std::string> dependencies;
     std::string cFlags;
     std::string cxxFlags;
@@ -90,17 +92,14 @@ struct Project {
     std::string cFlagsOut;
     std::string cxxFlagsOut;
     std::string ldFlagsOut;
+    bool built = false;
+
+    void print() const;
 };
 
 class NinjaGenerator {
 public:
-    NinjaGenerator() {
-        const char* compiler = std::getenv("CC");
-        m_writer.variable("cc", (compiler ? compiler : "g++"));
-        m_writer.rule("cc", "$cc $cflags -c -o $out $in");
-        m_writer.rule("ld", "$cc -o $out $in $ldflags");
-        m_writer.newline();
-    }
+    NinjaGenerator() = default;
     ~NinjaGenerator() = default;
 
     void add(const Project& project) {
@@ -109,22 +108,14 @@ public:
         }
 
         m_projectNames.insert(project.projectName);
-        m_writer.comment(project.projectName);
-        m_writer.variable("cflags", project.flags.first);
-        m_writer.build(project.projectName, "ld", {std::string(project.projectName + ".o")});
-        m_writer.build(std::string(project.projectName + ".o"), "cc", std::string("src/" + project.projectName + ".cpp"));
+        m_projects.push_back(project);
     }
+
+    void generate();
+
+    static std::string ProjectNameToFileName(const std::string& projectName, ProjectBuildType buildType) ;
 
     // Generate build.ninja
-    void generate() const {
-        std::ofstream ofs("build.ninja");
-        if (!ofs.is_open()) {
-            throw std::runtime_error("Failed to open build.ninja");
-        }
-        ofs << m_writer.string();
-        ofs.close();
-    }
-
     // Get the current value
     inline std::string string() const {
         return m_writer.string();
@@ -137,6 +128,7 @@ public:
 private:
     NinjaWriter m_writer;
     std::unordered_set<std::string> m_projectNames;
+    std::vector<Project> m_projects;
 };
 
 #endif //NINJA_GENERATOR_HPP

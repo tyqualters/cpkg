@@ -149,35 +149,112 @@ public:
         return is_dir(path);
     }
 
-    // LUA:build
-    // TODO: build, build_lib_shared, build_lib_static
-    static void BuildProject(const sol::this_state lua_state, std::string projectName, std::string version, std::vector<std::string> sourceFiles, std::vector<std::string> headerFiles, std::string compilerFlags, std::string linkerFlags, std::string outputDir) {
+    // LLUA:build
+    static void BuildProjects() {
+        fmt::println("Building project(s)...");
+        g_Generator.generate();
+        g_Generator.reset();
+        os::StartSubprocess(g_tools.ninja.value(), {});
+    }
+
+    // LUA: add_project
+    static void AddProject(
+        const sol::this_state lua_state,
+        const std::string& projectName,
+        const std::string& version,
+        const std::vector<std::string> sourceFiles,
+        const std::vector<std::string> includeDirs,
+        const std::vector<std::string> libDirs,
+        const std::vector<std::string> dependencies,
+        const std::string& cFlags,
+        const std::string& cxxFlags,
+        const std::string& ldFlags,
+        const std::string& outputDir,
+        const std::string& buildType,
+        const std::string& compiler,
+        const std::string& cFlagsOut,
+        const std::string& cxxFlagsOut,
+        const std::string& ldFlagsOut
+        ) {
         sol::state_view lua(lua_state);
 
         if (!make_dir_if_not_exists(outputDir)) {
             throw std::runtime_error("Failed to create output directory");
         }
 
-        g_Generator.add({
+        Project _project = {
             .projectName = projectName,
+            .version = version,
             .sourceFiles = sourceFiles,
-            .includeDirs = headerFiles,
-            .dependencies = {},
-            .flags = {compilerFlags, linkerFlags},
-            .outputPath = join_paths(outputDir, projectName),
-            .buildType = ProjectBuildType::BUILD_NO_LINK,
-        });
+            .includeDirs = includeDirs,
+            .libDirs = libDirs,
+            .dependencies = dependencies,
+            .cFlags = cFlags,
+            .cxxFlags = cxxFlags,
+            .ldFlags = ldFlags,
+            .outputPath = std::string(), // default
+            .buildType = ProjectBuildType::BUILD_NO_LINK, // default
+            .compiler = CompilerType::GCC, // default
+            .cFlagsOut = cFlagsOut,
+            .cxxFlagsOut = cxxFlagsOut,
+            .ldFlagsOut = ldFlagsOut
+        };
 
-        fmt::println("Adding project {} (version {})...", projectName, version);
-        for (const auto& file : sourceFiles) {
-            fmt::println("src - {}", file);
+        if (buildType == "executable") {
+            _project.buildType = ProjectBuildType::EXECUTABLE;
+        } else if (buildType == "static") {
+            _project.buildType = ProjectBuildType::STATIC_LIBRARY;
+        } else if (buildType == "shared") {
+            _project.buildType = ProjectBuildType::SHARED_LIBRARY;
+        } else if (buildType != "object") {
+            fmt::println("Unrecognized project type. Defaulting to 'object' option.");
         }
-        for (const auto& file : headerFiles) {
-            fmt::println("hdr - {}", file);
+
+        if constexpr (g_isWindows) {
+            switch (_project.buildType) {
+                case ProjectBuildType::EXECUTABLE:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".exe");
+                    break;
+                case ProjectBuildType::STATIC_LIBRARY:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".lib");
+                    break;
+                case ProjectBuildType::SHARED_LIBRARY:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".dll");
+                    break;
+                case ProjectBuildType::BUILD_NO_LINK:
+                    [[fallthrough]];
+                default:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".obj");
+            }
+        } else {
+            switch (_project.buildType) {
+                case ProjectBuildType::EXECUTABLE:
+                    _project.outputPath = join_paths(outputDir, _project.projectName);
+                break;
+                case ProjectBuildType::STATIC_LIBRARY:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".a");
+                break;
+                case ProjectBuildType::SHARED_LIBRARY:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".so");
+                break;
+                case ProjectBuildType::BUILD_NO_LINK:
+                    [[fallthrough]];
+                default:
+                    _project.outputPath = join_paths(outputDir, _project.projectName + ".o");
+            }
         }
-        fmt::println("Compiler flags: {}", compilerFlags);
-        fmt::println("Linker flags: {}", linkerFlags);
-        fmt::println("Output directory: {}", outputDir);
+
+        if (compiler == "clang") {
+            _project.compiler = CompilerType::CLANG;
+        } else if (compiler == "msvc") {
+            _project.compiler = CompilerType::MSVC;
+        } else if (compiler != "gcc") {
+            fmt::println("Unrecognized compiler. Defaulting to GCC.");
+        }
+
+        g_Generator.add(_project);
+
+        _project.print();
     }
 
     // LUA:find_source_files
@@ -231,7 +308,8 @@ public:
         m_lua.set_function("file_exists", &LuaInstance::FileExists);
         m_lua.set_function("dir_exists", &LuaInstance::DirectoryExists);
         m_lua.set_function("is_dir", &LuaInstance::IsDir);
-        m_lua.set_function("build", &LuaInstance::BuildProject);
+        m_lua.set_function("add_project", &LuaInstance::AddProject);
+        m_lua.set_function("build", &LuaInstance::BuildProjects);
         m_lua.set_function("find_source_files", &LuaInstance::FindSourceFiles);
         m_lua.set_function("find_module_files", &LuaInstance::FindModuleFiles);
         m_lua.set_function("find_header_files", &LuaInstance::FindHeaderFiles);
