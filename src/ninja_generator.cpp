@@ -125,6 +125,7 @@ void NinjaGenerator::generate() {
             fmt::println("Missing dependency: {}", dep);
             throw std::runtime_error("Dependency not found.");
 foundDep:
+            continue; // required here for msvc
         }
 
         // Iterate thru include dirs
