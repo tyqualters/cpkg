@@ -249,7 +249,12 @@ public:
         } else if (compiler == "msvc") {
             _project.compiler = CompilerType::MSVC;
         } else if (compiler != "gcc") {
-            fmt::println("Unrecognized compiler. Defaulting to GCC.");
+            if(g_isWindows) {
+                _project.compiler = CompilerType::MSVC;
+                fmt::println("Unrecognized compiler. Defaulting to MSVC.");
+            } else {
+                fmt::println("Unrecognized compiler. Defaulting to GCC.");
+            }
         }
 
         g_Generator.add(_project);

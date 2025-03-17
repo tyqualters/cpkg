@@ -85,7 +85,17 @@ void NinjaGenerator::generate() {
 
     // TODO: Pass list of compilers
     // TODO: Windows ofc
+
+    // default
     std::string cc = "gcc", cxx = "g++", ld = "g++", ar = "ar";
+
+    if constexpr(g_isWindows) {
+        cc = "cl";
+        cxx = "cl";
+        ld = "link";
+        ar = "lib";
+    }
+
     m_writer.comment("Global variables");
     m_writer.variable("cc", cc);
     m_writer.variable("cxx", cxx);
@@ -96,9 +106,17 @@ void NinjaGenerator::generate() {
     m_writer.newline();
 
     m_writer.comment("Global rules");
-    m_writer.rule("cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
+    if(cc == "gcc") {
+        m_writer.rule("cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
+    } else if(cc == "cl") {
+        m_writer.rule("cc", "$cxx /c $in $cflags /Fo $out", "Compiling $in to $out");
+    }
     m_writer.rule("ld", "$ld $in $ldflags -o $out", "Linking $in to $out");
-    m_writer.rule("ar", "$ar rcs $out $in ", "Archiving $in to $out");
+    if(ar == "ar") {
+        m_writer.rule("ar", "$ar rcs $out $in ", "Archiving $in to $out");
+    } else if (ar == "lib") {
+        m_writer.rule("ar", "/out:$out $in", "Archiving $in to $out");
+    }
     m_writer.newline();
 
     // Step 1. Source files
@@ -142,7 +160,7 @@ foundDep:
         // Compile Object Files
         std::vector<std::string> objectFiles{};
         for (const auto& sourceFile : project.sourceFiles) {
-            std::string objectFile = sourceFile.substr(0, sourceFile.find_last_of(".")) + ".o";
+            std::string objectFile = sourceFile.substr(0, sourceFile.find_last_of('.')) + (g_isWindows ? ".obj" : ".o");
             objectFiles.push_back(objectFile);
             m_writer.build(objectFile, "cc", sourceFile);
             m_writer.variable("cflags", cflags, 1);
