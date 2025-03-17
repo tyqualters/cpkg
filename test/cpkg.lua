@@ -43,11 +43,11 @@ function debug()
     )
 
     add_project(
-        projectName,                        -- Name
+        projectName,                  -- Name
         "1.0.0",                      -- Version
         sourceFiles,                  -- Source files (Lua array -> std::vector<std::string>)
         includeDirs,                  -- Include directories (Lua array -> std::vector<std::string>)
-        {"."},                           -- Library directories (Lua array -> std::vector<std::string>)
+        {"."},                        -- Library directories (Lua array -> std::vector<std::string>)
         {"lib"},                      -- Dependencies (Lua array -> std::vector<std::string>)
         "", "", "",                   -- (C,CXX,LD) Flags
         outputDir,                    -- Output directory

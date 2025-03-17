@@ -95,6 +95,7 @@ struct Project {
     bool built = false;
 
     void print() const;
+    std::string string() const;
 };
 
 class NinjaGenerator {

@@ -55,9 +55,34 @@ void Project::print() const {
     fmt::println("");
 }
 
+std::string Project::string() const {
+    return "(NOT IMPLEMENTED YET)"; // TODO: Return JSON and then compare each project for changes in .build_cpkg.json before writing build.ninja
+}
+
+
+std::vector<std::string> FindHeadersInFile(const std::string fileName) {
+    if (file_exists(fileName)) {
+        std::ifstream ifs(fileName);
+        std::string line;
+        std::vector<std::string> headers;
+        while (std::getline(ifs, line)) {
+            if (line.find("#include") != std::string::npos) {
+                size_t start = line.find("\"");
+                size_t end = line.find("\"", start + 1);
+                if (start != std::string::npos && end != std::string::npos) {
+                    headers.push_back(line.substr(start + 1, end - start - 1));
+                }
+            }
+        }
+        ifs.close();
+        return headers;
+    } else throw std::runtime_error("File not found.");
+}
+
 void NinjaGenerator::generate() {
 
     // TODO: Pass list of compilers
+    // TODO: Windows ofc
     std::string cc = "gcc", cxx = "g++", ld = "g++", ar = "ar";
     m_writer.comment("Global variables");
     m_writer.variable("cc", cc);
@@ -69,9 +94,9 @@ void NinjaGenerator::generate() {
     m_writer.newline();
 
     m_writer.comment("Global rules");
-    m_writer.rule("compile", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
-    m_writer.rule("link", "$ld $in $ldflags -o $out", "Linking $in to $out");
-    m_writer.rule("archive", "$ar rcs $out $in ", "Archiving $in to $out");
+    m_writer.rule("cc", "$cxx -c $in $cflags -o $out", "Compiling $in to $out");
+    m_writer.rule("ld", "$ld $in $ldflags -o $out", "Linking $in to $out");
+    m_writer.rule("ar", "$ar rcs $out $in ", "Archiving $in to $out");
     m_writer.newline();
 
     // Step 1. Source files
@@ -95,7 +120,7 @@ void NinjaGenerator::generate() {
                     goto foundDep; // hehe goto ftw
                 }
             }
-            fmt::println("Dependency: {}", dep);
+            fmt::println("Missing dependency: {}", dep);
             throw std::runtime_error("Dependency not found.");
 foundDep:
         }
@@ -116,17 +141,18 @@ foundDep:
         for (const auto& sourceFile : project.sourceFiles) {
             std::string objectFile = sourceFile.substr(0, sourceFile.find_last_of(".")) + ".o";
             objectFiles.push_back(objectFile);
-            m_writer.build(objectFile, "compile", sourceFile);
+            m_writer.build(objectFile, "cc", sourceFile);
             m_writer.variable("cflags", cflags, 1);
             m_writer.variable("cxxflags", cxxflags, 1);
             m_writer.newline();
         }
+
         // Link Object Files
         if (project.buildType == ProjectBuildType::EXECUTABLE) {
-            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), "link", objectFiles);
+            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), "ld", objectFiles);
             m_writer.variable("ldflags", ldflags, 1);
         } else if (project.buildType == ProjectBuildType::STATIC_LIBRARY) {
-            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), "archive", objectFiles);
+            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), "ar", objectFiles);
             m_writer.variable("ldflags", ldflags, 1);
         }
 
