@@ -56,6 +56,8 @@ void Project::print() const {
 }
 
 std::string Project::string() const {
+
+    // UNLESS -rb or --rebuild is used in place of -b or --build
     return "(NOT IMPLEMENTED YET)"; // TODO: Return JSON and then compare each project for changes in .build_cpkg.json before writing build.ninja
 }
 
