@@ -1,5 +1,7 @@
 #include "utils.hpp"
 
+// #include <openssl/sha.h> TODO: SHA256 Function
+
 #if _IS_WINDOWS == 1
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>

@@ -23,8 +23,11 @@
 #define CPKG_VERSION "1.0"
 
 static bool g_autoYes = false;
+static bool g_allowShell = true;
 
 // Locations of executables
+// TODO: Pass these as accessible commands to Lua
+// NOTE: These are NOT required for Ninja. As far as that goes, they just need to be in PATH.
 struct Tools {
     std::optional<std::string> ninja{}; // Ninja Build System,
     std::optional<std::string> cmake{}; // CMake Build System Generator
@@ -69,31 +72,39 @@ const char* const lua_init_script = R"lua(
 -- > outputDir: The directory to output the build files to
 -- > config: The configuration to build for
 
-local projectName = "default"
+-- Project settings
+local projectName = "myProject"
 local version = "1.0.0"
 
+-- Project files
 local sourceFiles = find_source_files(projectDir .. "/src")
-local includeDirs = {projectDir .. "/include"}
-local compilerFlags = ""
-local linkerFlags = ""
+local includeDirs = find_header_files(projectDir .. "/include")
+local cFlags = ""
+local ldFlags = ""
 
+-- Debug config
 function debug()
-    print('Building ' .. projectName .. ' (Debug)')
-    build(projectName, version, sourceFiles, headerFiles, compilerFlags, linkerFlags, outputDir)
-end
+    add_project(
+        projectName,                  -- Name
+        "1.0.0",                      -- Version
+        sourceFiles,                  -- Source files (Lua array -> std::vector)
+        includeDirs,                  -- Include directories (Lua array -> std::vector)
+        {},                           -- Library directories (Lua array -> std::vector)
+        {},                           -- Dependencies (Lua array -> std::vector)
+        cFlags, cFlags, ldFlags,      -- (C,CXX,LD) Flags
+        outputDir,                    -- Output directory
+        "executable",                 -- Build type
+        "default",                    -- Compiler
+        "", "", ""                    -- (C,CXX,LD) Export Flags
+    )
 
-function release()
-    -- TODO: Add optimization
-    print('Building ' .. projectName .. ' (Release)')
-    build(projectName, version, sourceFiles, headerFiles, compilerFlags, linkerFlags, outputDir)
+    build()
 end
 
 if config == "debug" then
     debug()
-elseif config == "release" then
-    release()
 else
-    error("Unknown config")
+    print('To do: add more configs')
 end
 )lua";
 
@@ -106,6 +117,30 @@ public:
 
     auto& get() {
         return m_lua;
+    }
+
+    static bool SystemCommand(std::string command, const std::vector<std::string> args) {
+        if (!g_allowShell) {
+            fmt::print(FMT_ERROR_COLOR, "SHELL COMMANDS ARE DISABLED. Use --allow-shell to enable.\n");
+            return false;
+        }
+
+        if (command.find("/") == std::string::npos && command.find("\\") == std::string::npos) {
+            std::string _command = command;
+            command = find_exe(std::move(_command)).value_or(command);
+        }
+
+        if (!g_autoYes) {
+            fmt::print(FMT_WARNING_COLOR, "WARNING: SHELL COMMANDS COULD COMPROMISE YOUR SYSTEM.\n");
+            fmt::println("SH: {} {}", command, fmt::join(args, " "));
+            fmt::print("Continue with command? (Y/n) ");
+            if (const char in = std::getchar(); in != 'y' && in != 'Y') {
+                fmt::print(FMT_ERROR_COLOR, "Command aborted.\n");
+                return false;
+            }
+        } else fmt::println("SH: {} {}", command, fmt::join(args, " "));
+
+        return os::StartSubprocess(command, args) == 0;
     }
 
     // LUA:http_get
@@ -194,7 +229,7 @@ public:
             .ldFlags = ldFlags,
             .outputPath = std::string(), // default
             .buildType = ProjectBuildType::BUILD_NO_LINK, // default
-            .compiler = CompilerType::GCC, // default
+            .compiler = CompilerType::GCC, // unset
             .cFlagsOut = cFlagsOut,
             .cxxFlagsOut = cxxFlagsOut,
             .ldFlagsOut = ldFlagsOut
@@ -251,8 +286,10 @@ public:
         } else if (compiler != "gcc") {
             if(g_isWindows) {
                 _project.compiler = CompilerType::MSVC;
+                if (compiler != "default")
                 fmt::println("Unrecognized compiler. Defaulting to MSVC.");
             } else {
+                if (compiler != "default")
                 fmt::println("Unrecognized compiler. Defaulting to GCC.");
             }
         }
@@ -322,6 +359,7 @@ public:
         m_lua.set_function("http_get", &LuaInstance::HttpGet);
         m_lua.set_function("download", &LuaInstance::download);
         m_lua.set_function("read_file", &LuaInstance::ReadFile);
+        m_lua.set_function("run_command", &LuaInstance::SystemCommand);
     }
 
     void run_script(const std::string& scriptPath) {
@@ -424,13 +462,9 @@ int main(int argc, char* argv[]) {
         ("script", "Run a Lua script", cxxopts::value<std::string>())
         ("d,dir", "Project directory", cxxopts::value<std::string>()->default_value("./"))
         ("c,config", "Project configuration to use", cxxopts::value<std::string>()->default_value("debug"))
-        ("CC", "Which C compiler to use", cxxopts::value<std::string>()->default_value("gcc")) // TODO
-        ("CXX", "Which C++ compiler to use", cxxopts::value<std::string>()->default_value("g++")) // TODO
-        ("CFLAGS", "Flags to pass to the C compiler", cxxopts::value<std::string>()) // TODO
-        ("CXXFLAGS", "Flags to pass to the C++ compiler", cxxopts::value<std::string>()) // TODO
-        ("LDFLAGS", "Flags to pass to the linker", cxxopts::value<std::string>()) // TODO
-        ("o,output", "Output directory", cxxopts::value<std::string>()->default_value("build/")) // TODO
+        ("o,output", "Output directory", cxxopts::value<std::string>()->default_value("build/"))
         ("y,yes", "Answer 'yes' to all warnings (Be cautious!)", cxxopts::value<bool>()->implicit_value("true")->default_value("false"))
+        ("allow-shell", "Allow system commands. Auto-enabled unless -y is passed.", cxxopts::value<bool>()->implicit_value("true"))
         ("h,help", "Print help");
 
     // options.parse_positional({"add", "dependency-name"});
@@ -447,6 +481,9 @@ int main(int argc, char* argv[]) {
     // Auto-yes
     if (options_results.count("y")) {
         g_autoYes = true;
+        if (options_results.count("allow-shell") == 0U) {
+            g_allowShell = false;
+        }
         fmt::print(FMT_WARNING_COLOR, "Auto-yes enabled. Warnings will not require user intervention.\n\n");
     }
 
@@ -469,10 +506,6 @@ int main(int argc, char* argv[]) {
         std::string buildPath = options_results["output"].as<std::string>();
         std::string config = options_results["config"].as<std::string>();
         run_build_script(projectPath, buildPath, config);
-        fmt::println("Generating build.ninja.");
-        g_Generator.generate();
-        fmt::println("Building project.");
-        // os::StartSubprocess(g_tools.ninja.value(), {});
         fmt::println("Process finished.");
         return EXIT_SUCCESS;
     }

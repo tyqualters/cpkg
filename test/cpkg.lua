@@ -13,6 +13,8 @@ local includeDirs = find_header_files(projectDir .. "/include")
 local compilerFlags = ""
 local linkerFlags = ""
 
+run_command("ls", {"-l"})
+
 -- Download an online test file
 --if not file_exists("test.lua") then
 --    download('https://raw.githubusercontent.com/tyqualters/voidtools/refs/heads/master/scripts/example_file.lua', 'test.lua')
