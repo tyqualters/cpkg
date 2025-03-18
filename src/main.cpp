@@ -192,6 +192,35 @@ public:
         os::StartSubprocess(g_tools.ninja.value(), {});
     }
 
+    // LUA: add_dependency
+    static void AddDependency(
+        const std::string& dependencyName,
+        const std::string& version,
+        std::vector<std::string> libraryPaths,
+        std::vector<std::string> includeDirs,
+        const std::string& cFlags,
+        const std::string& cxxFlags,
+        const std::string& ldFlags
+        ) {
+        for (const auto& path : libraryPaths) {
+            if (!file_exists(path)) {
+                fmt::print(stderr, FMT_ERROR_COLOR, "Invalid library path: {}\n", path);
+                throw std::runtime_error("Invalid library path");
+            }
+        }
+        Dependency _dependency = {
+            .dependencyName = dependencyName,
+            .dependencyVersion = version,
+            .libraryPaths = libraryPaths,
+            .includeDirs = includeDirs,
+            .cFlags = cFlags,
+            .cxxFlags = cxxFlags,
+            .ldFlags = ldFlags
+        };
+
+        g_Generator.add(_dependency);
+    }
+
     // LUA: add_project
     static void AddProject(
         const sol::this_state lua_state,
@@ -245,39 +274,7 @@ public:
             fmt::println("Unrecognized project type. Defaulting to 'object' option.");
         }
 
-        if constexpr (g_isWindows) {
-            switch (_project.buildType) {
-                case ProjectBuildType::EXECUTABLE:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".exe");
-                    break;
-                case ProjectBuildType::STATIC_LIBRARY:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".lib");
-                    break;
-                case ProjectBuildType::SHARED_LIBRARY:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".dll");
-                    break;
-                case ProjectBuildType::BUILD_NO_LINK:
-                    [[fallthrough]];
-                default:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".obj");
-            }
-        } else {
-            switch (_project.buildType) {
-                case ProjectBuildType::EXECUTABLE:
-                    _project.outputPath = join_paths(outputDir, _project.projectName);
-                break;
-                case ProjectBuildType::STATIC_LIBRARY:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".a");
-                break;
-                case ProjectBuildType::SHARED_LIBRARY:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".so");
-                break;
-                case ProjectBuildType::BUILD_NO_LINK:
-                    [[fallthrough]];
-                default:
-                    _project.outputPath = join_paths(outputDir, _project.projectName + ".o");
-            }
-        }
+        _project.outputPath = _project.buildType == ProjectBuildType::BUILD_NO_LINK ? outputDir : join_paths(outputDir, NinjaGenerator::ProjectNameToFileName(_project.projectName, _project.buildType));
 
         if (compiler == "clang") {
             _project.compiler = CompilerType::CLANG;
@@ -458,6 +455,7 @@ int main(int argc, char* argv[]) {
 
     options.add_options()
         ("i,init", "Generate a cpkg.lua file")
+        ("clean", "Clean the build directory")
         ("b,build", "Build the project")
         ("script", "Run a Lua script", cxxopts::value<std::string>())
         ("d,dir", "Project directory", cxxopts::value<std::string>()->default_value("./"))
@@ -485,6 +483,11 @@ int main(int argc, char* argv[]) {
             g_allowShell = false;
         }
         fmt::print(FMT_WARNING_COLOR, "Auto-yes enabled. Warnings will not require user intervention.\n\n");
+    }
+
+    if (options_results.count("clean")) {
+        os::StartSubprocess(g_tools.ninja.value(), {"-t", "clean"});
+        return EXIT_SUCCESS;
     }
 
     // Init new cpkg.lua file

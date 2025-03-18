@@ -1,5 +1,6 @@
 #include "ninja_generator.hpp"
 #include "utils.hpp"
+#include <cassert>
 
 void Project::print() const {
 
@@ -45,9 +46,9 @@ void Project::print() const {
     fmt::println("C++ Flags: {}", this->cxxFlags);
     fmt::println("Linker Flags: {}", this->ldFlags);
     fmt::println("Output Path: {}", this->outputPath);
-    fmt::println("(Import) C Flags: {}", this->cFlagsOut);
-    fmt::println("(Import) C++ Flags: {}", this->cxxFlagsOut);
-    fmt::println("(Import) Linker Flags: {}", this->ldFlagsOut);
+    fmt::println("(Export) C Flags: {}", this->cFlagsOut);
+    fmt::println("(Export) C++ Flags: {}", this->cxxFlagsOut);
+    fmt::println("(Export) Linker Flags: {}", this->ldFlagsOut);
     fmt::println("Dependencies:");
     for (const auto& dep : this->dependencies) {
         fmt::println("  {}", dep);
@@ -174,6 +175,7 @@ void NinjaGenerator::generate() {
     m_writer.newline();
 
     m_writer.comment("Global rules");
+    m_writer.rule("clean", "rm $in", "Cleaning $in");
     if (_use_msvc) {
         // MSVC
         m_writer.rule("msvc_cc", "$msvc_cc $cflags /c $in /Fo $out", "Compiling C $in to $out");
@@ -211,8 +213,10 @@ void NinjaGenerator::generate() {
         }
     };
 
-
     m_writer.newline();
+
+    // std::vector<std::string> _target_names{};
+    // std::vector<std::string> _object_files{};
 
     // Step 1. Source files
     for (const auto& project : m_projects) {
@@ -233,10 +237,41 @@ void NinjaGenerator::generate() {
                             // MSVC
                             cflags += " /I" + includeDir;
                             cxxflags += " /I" + includeDir;
+                            if (depProject.buildType == ProjectBuildType::STATIC_LIBRARY || depProject.buildType == ProjectBuildType::SHARED_LIBRARY) {
+                                ldflags += " /LIBPATH:" + depProject.outputPath;
+                            }
                         } else {
                             // GCC
                             cflags += " -I" + includeDir;
                             cxxflags += " -I" + includeDir;
+                            if (depProject.buildType == ProjectBuildType::STATIC_LIBRARY || depProject.buildType == ProjectBuildType::SHARED_LIBRARY) {
+                                ldflags += " -l" + depProject.projectName;
+                            }
+                        }
+                    }
+                    goto foundDep; // hehe goto ftw
+                }
+            }
+            for (const auto& dependency : m_dependencies) {
+                if (dependency.dependencyName == dep) {
+                    cflags += " " + dependency.cFlags;
+                    cxxflags += " " + dependency.cxxFlags;
+                    ldflags += " " + dependency.ldFlags;
+                    for (const auto& includeDir: dependency.includeDirs) {
+                        if (project.compiler == CompilerType::MSVC) {
+                            // MSVC
+                            cflags += " /I" + includeDir;
+                            cxxflags += " /I" + includeDir;
+                            for (const auto& libPath : dependency.libraryPaths) {
+                                ldflags += " /LIBPATH:\"" + libPath + "\"";
+                            }
+                        } else {
+                            // GCC
+                            cflags += " -I" + includeDir;
+                            cxxflags += " -I" + includeDir;
+                            for (const auto& libPath : dependency.libraryPaths) {
+                                ldflags += " " + libPath;
+                            }
                         }
                     }
                     goto foundDep; // hehe goto ftw
@@ -261,16 +296,12 @@ foundDep:
             }
         }
 
-        // Iterate thru lib dirs
-        for (const auto& libDir : project.libDirs) {
-            if(project.compiler == CompilerType::MSVC) {
-                // MSVC
-                ldflags += " /LIBPATH:\"" + libDir + "\"";
-            } else {
-                // GCC
-                ldflags += " -L" + libDir;
+        // Iterate thru lib dirs (not supported on MSVC)
+        if(project.compiler != CompilerType::MSVC)
+            for (const auto& libDir : project.libDirs) {
+                 // GCC
+                 ldflags += " -L" + libDir;
             }
-        }
 
         // Compile Object Files
         std::vector<std::string> objectFiles{};
@@ -278,7 +309,7 @@ foundDep:
             std::string objectFile = sourceFile.substr(0, sourceFile.find_last_of('.')) + (g_isWindows ? ".obj" : ".o");
             objectFiles.push_back(objectFile);
             if (sourceFile.ends_with(".c")) {
-                m_writer.build(objectFile, _rule(project.compiler, "cc"), sourceFile);
+                m_writer.build(project.buildType == ProjectBuildType::BUILD_NO_LINK ? join_paths(project.outputPath, objectFile) : objectFile, _rule(project.compiler, "cc"), sourceFile);
                 m_writer.variable("cflags", cflags, 1);
             } else {
                 m_writer.build(objectFile, _rule(project.compiler, "cxx"), sourceFile);
@@ -287,17 +318,29 @@ foundDep:
             m_writer.newline();
         }
 
+        // if (project.buildType != ProjectBuildType::BUILD_NO_LINK)
+        //     _object_files.insert(_object_files.end(), objectFiles.begin(), objectFiles.end());
+
         // Link Object Files
         if (project.buildType == ProjectBuildType::EXECUTABLE) {
-            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), _rule(project.compiler, "ld"), objectFiles);
+            m_writer.build(project.outputPath, _rule(project.compiler, "ld"), objectFiles);
             m_writer.variable("ldflags", ldflags, 1);
         } else if (project.buildType == ProjectBuildType::STATIC_LIBRARY) {
-            m_writer.build(NinjaGenerator::ProjectNameToFileName(project.projectName, project.buildType), _rule(project.compiler, "ar"), objectFiles);
+            m_writer.build(project.outputPath, _rule(project.compiler, "ar"), objectFiles);
             m_writer.variable("ldflags", ldflags, 1);
+        } else if (project.buildType == ProjectBuildType::SHARED_LIBRARY) {
+            std::runtime_error("Shared libraries are not yet supported.");
+        } else {
+            assert(project.buildType == ProjectBuildType::BUILD_NO_LINK);
         }
 
         m_writer.newline();
     }
+
+    // m_writer.build("clean", "clean", _object_files);
+    // Auto-Clean (do not add)
+    // m_writer.build("all", "phony", "clean");
+    m_writer.newline();
 
     if (!FileEqualsString("build.ninja", m_writer.string())) {
         std::ofstream ofs("build.ninja", std::ios::trunc);

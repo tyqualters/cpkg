@@ -97,6 +97,15 @@ struct Project {
     void print() const;
     std::string string() const;
 };
+struct Dependency {
+    std::string dependencyName;
+    std::string dependencyVersion;
+    std::vector<std::string> libraryPaths;
+    std::vector<std::string> includeDirs;
+    std::string cFlags;
+    std::string cxxFlags;
+    std::string ldFlags;
+};
 
 class NinjaGenerator {
 public:
@@ -104,12 +113,24 @@ public:
     ~NinjaGenerator() = default;
 
     void add(const Project& project) {
+        if (project.projectName.find(' ') != std::string::npos) throw std::runtime_error("Project name cannot contain spaces.");
+
         if (m_projectNames.contains(project.projectName)) {
             throw std::runtime_error("Project name already exists.");
         }
 
         m_projectNames.insert(project.projectName);
         m_projects.push_back(project);
+    }
+
+    void add(const Dependency& dependency) {
+        if (dependency.dependencyName.find(' ') != std::string::npos) throw std::runtime_error("Dependency name cannot contain spaces.");
+        if (m_projectNames.contains(dependency.dependencyName)) {
+            throw std::runtime_error("Project name already exists.");
+        }
+
+        m_projectNames.insert(dependency.dependencyName);
+        m_dependencies.push_back(dependency);
     }
 
     void generate();
@@ -130,6 +151,7 @@ private:
     NinjaWriter m_writer;
     std::unordered_set<std::string> m_projectNames;
     std::vector<Project> m_projects;
+    std::vector<Dependency> m_dependencies;
 };
 
 #endif //NINJA_GENERATOR_HPP

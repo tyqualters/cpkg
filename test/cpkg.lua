@@ -13,7 +13,7 @@ local includeDirs = find_header_files(projectDir .. "/include")
 local compilerFlags = ""
 local linkerFlags = ""
 
-run_command("ls", {"-l"})
+-- run_command("ls", {"-l"})
 
 -- Download an online test file
 --if not file_exists("test.lua") then
@@ -41,7 +41,7 @@ function debug()
         outputDir,                    -- Output directory
         "static",                     -- Build type
         "gcc",                        -- Compiler
-        "", "", "-llib"               -- (C,CXX,LD) Import Flags
+        "", "", ""                    -- (C,CXX,LD) Import Flags
     )
 
     add_project(
@@ -49,7 +49,7 @@ function debug()
         "1.0.0",                      -- Version
         sourceFiles,                  -- Source files (Lua array -> std::vector<std::string>)
         includeDirs,                  -- Include directories (Lua array -> std::vector<std::string>)
-        {"."},                        -- Library directories (Lua array -> std::vector<std::string>)
+        {".", outputDir},             -- Library directories (Lua array -> std::vector<std::string>)
         {"lib"},                      -- Dependencies (Lua array -> std::vector<std::string>)
         "", "", "",                   -- (C,CXX,LD) Flags
         outputDir,                    -- Output directory
