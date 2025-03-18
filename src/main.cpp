@@ -347,6 +347,7 @@ public:
         m_lua.set_function("file_exists", &LuaInstance::FileExists);
         m_lua.set_function("dir_exists", &LuaInstance::DirectoryExists);
         m_lua.set_function("is_dir", &LuaInstance::IsDir);
+        m_lua.set_function("add_dependency", &LuaInstance::AddDependency);
         m_lua.set_function("add_project", &LuaInstance::AddProject);
         m_lua.set_function("build", &LuaInstance::BuildProjects);
         m_lua.set_function("find_source_files", &LuaInstance::FindSourceFiles);

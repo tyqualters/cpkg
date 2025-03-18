@@ -60,19 +60,20 @@
                 <section id="lua-functions">
                     <h4>Functions</h4>
                     <ul>
-                        <li>file_exists(string path) - <em>Returns true/false if a file exists</em></li>
-                        <li>dir_exists(string path) - <em>Returns true/false if a path exists and is a directory</em></li>
-                        <li>is_dir(string path) - <em>Returns true/false if a path is a directory</em></li>
-                        <li>add_project(string name, string version, string[] sourceFiles, string[] includeDirs, string[] libDirs, string[] dependencies, string cFlags, string cxxFlags, string ldFlags, string outputDir, string buildType, string compiler, string cFlagsExport, string cxxFlagsExport, string ldFlagsExport) - <em>Adds a project</em></li>
-                        <li>build() - <em>Generates build.ninja and calls Ninja</em></li>
-                        <li>find_source_files(string path) - <em>Gets a list of all the source files in a directory</em></li>
-                        <li>find_module_files(string path) - <em>Gets a list of all the module files in a directory</em></li>
-                        <li>find_header_files(string path) - <em>Gets a list of all the header files in a directory</em></li>
-                        <li>cmake() - <em>Call CMake (INOP)</em></li>
-                        <li>http_get(string url) - <em>Return content from HTTP GET request</em></li>
-                        <li>download(string url, string fileName) - <em>Download content from HTTP GET request</em></li>
-                        <li>read_file(string path) - <em>Returns the content of a file</em></li>
-                        <li>run_command(string cmd, string[] args) - <em>Runs a shell command</em></li>
+                        <li>file_exists(string path) &mdash; <em>Returns true/false if a file exists</em></li>
+                        <li>dir_exists(string path) &mdash; <em>Returns true/false if a path exists and is a directory</em></li>
+                        <li>is_dir(string path) &mdash; <em>Returns true/false if a path is a directory</em></li>
+                        <li>add_dependency(string name, string version, string[] libPaths, string[] includeDirs, string cFlags, string cxxFlags, string ldFlags) &mdash; <em>Adds an external dependency</em></li>
+                        <li>add_project(string name, string version, string[] sourceFiles, string[] includeDirs, string[] libDirs, string[] dependencies, string cFlags, string cxxFlags, string ldFlags, string outputDir, string buildType, string compiler, string cFlagsExport, string cxxFlagsExport, string ldFlagsExport) &mdash; <em>Adds a project</em></li>
+                        <li>build() &mdash; <em>Generates build.ninja and calls Ninja</em></li>
+                        <li>find_source_files(string path) &mdash; <em>Gets a list of all the source files in a directory</em></li>
+                        <li>find_module_files(string path) &mdash; <em>Gets a list of all the module files in a directory</em></li>
+                        <li>find_header_files(string path) &mdash; <em>Gets a list of all the header files in a directory</em></li>
+                        <li>cmake() &mdash; <em>Call CMake (INOP)</em></li>
+                        <li>http_get(string url) &mdash; <em>Return content from HTTP GET request</em></li>
+                        <li>download(string url, string fileName) &mdash; <em>Download content from HTTP GET request</em></li>
+                        <li>read_file(string path) &mdash; <em>Returns the content of a file</em></li>
+                        <li>run_command(string cmd, string[] args) &mdash; <em>Runs a shell command</em></li>
                     </ul>
                     <p>It is important to note that these are C++ exported functions. Mismatched types will cause exceptions.</p>
                 </section>
