@@ -379,6 +379,11 @@ auto run_lua_script(const std::string& luaScriptPath) {
     lua.get().set("projectDir", sol::nil);
     lua.get().set("outputDir", sol::nil);
     lua.get().set("config", sol::nil);
+    if (g_isWindows) {
+        lua.get().set("platform", "windows");
+    } else {
+        lua.get().set("platform", "unix");
+    }
     lua.run_script(luaScriptPath);
 }
 
