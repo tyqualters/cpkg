@@ -1,3 +1,10 @@
+# LDLT
+Low Development, Low Testing
+
+Please publish any issues you experience to the Issues tab.
+
+PRs welcome.
+
 # cpkg
 
 A simple C/C++ project management tool
