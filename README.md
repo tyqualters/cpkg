@@ -1,11 +1,8 @@
-# LDLT
-Low Development, Low Testing
+# Status
 
-Please publish any issues you experience to the Issues tab.
+Due to time constraints, this project is not actively maintained. Hopefully in the future, more time may be allocated.
 
-PRs welcome.
-
-# cpkg
+# CarePackage
 
 A simple C/C++ project management tool
 
@@ -13,15 +10,15 @@ A simple C/C++ project management tool
 
 **Work with what you know**
 
-Creating and managing a project, you are working with Lua. cpkg uses Ninja to then build your project.
+To create and manage a project, you use a simple Lua script. CarePackage runs everything else behind the scenes.
 
 **Work with what you don't know**
 
-Why deal with the hassle of a CMake file? Just add a Lua script to a third party dependency and make it work.
+Automate the whole dependency management process with a Lua script that can automatically build and (**TODO**) include your project.
 
 **Automatically install dependencies**
 
-No need for vcpkg. With the community Lua files, you can automatically download, build, and import third party dependencies with no hassle.
+(**TODO**) No need for vcpkg. With the community Lua files, you can automatically download, build, and import third party dependencies with no hassle.
 
 **Configuration**
 
@@ -35,8 +32,6 @@ Make it super simple to build with a specific configuration. Just run `cpkg -b -
 
 This project is developed using CLion. Linux (GCC) and Windows (MS Build Tools 2022).
 
-Dependencies are vendored such that setting up a development environment is easier.
-
-If you do install dependencies yourself on Windows, good luck.
+Dependencies are vendored so that setting up a development environment is easier.
 
 &copy; 2025 Ty Qualters. Project licensed MIT.
